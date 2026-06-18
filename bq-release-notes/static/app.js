@@ -3,9 +3,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let releaseNotesData = null;
     let currentFilterType = 'all';
     let currentSearchQuery = '';
+    let currentFilteredEntries = [];
 
     // DOM Elements
     const refreshBtn = document.getElementById('refresh-btn');
+    const exportBtn = document.getElementById('export-btn');
     const retryBtn = document.getElementById('retry-btn');
     const searchInput = document.getElementById('search-input');
     const clearSearchBtn = document.getElementById('clear-search');
@@ -31,6 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Event Listeners
     refreshBtn.addEventListener('click', fetchReleaseNotes);
+    exportBtn.addEventListener('click', exportToCSV);
     retryBtn.addEventListener('click', fetchReleaseNotes);
     clearFiltersBtn.addEventListener('click', resetFilters);
 
@@ -150,6 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
+        currentFilteredEntries = filteredEntries;
         renderFeed(filteredEntries);
     }
 
@@ -215,15 +219,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateBody.innerHTML = item.body;
                 updateItem.appendChild(updateBody);
 
-                // Action Bar (Tweet Button)
+                // Action Bar (Tweet & Copy Buttons)
                 const updateActions = document.createElement('div');
                 updateActions.className = 'update-actions';
                 
+                const copyBtn = document.createElement('button');
+                copyBtn.className = 'copy-btn';
+                copyBtn.innerHTML = '<i class="fa-regular fa-copy"></i> Copy';
+                copyBtn.addEventListener('click', () => copyToClipboard(entry, item, copyBtn));
+
                 const tweetBtn = document.createElement('button');
                 tweetBtn.className = 'tweet-btn';
                 tweetBtn.innerHTML = '<i class="fa-brands fa-x-twitter"></i> Tweet';
                 tweetBtn.addEventListener('click', () => openTweetModal(entry, item));
 
+                updateActions.appendChild(copyBtn);
                 updateActions.appendChild(tweetBtn);
                 updateItem.appendChild(updateActions);
 
@@ -318,5 +328,68 @@ document.addEventListener('DOMContentLoaded', () => {
             postTweetBtn.style.opacity = '1';
             postTweetBtn.style.cursor = 'pointer';
         }
+    }
+
+    // Utility: Copy to Clipboard
+    async function copyToClipboard(entry, item, button) {
+        const date = entry.date;
+        const type = item.type;
+        const url = entry.link || 'https://cloud.google.com/bigquery/docs/release-notes';
+        const cleanBody = stripHtml(item.body).replace(/\s+/g, ' ').trim();
+        
+        const textToCopy = `Google Cloud BigQuery Release Update (${date})\nType: ${type}\n\n${cleanBody}\n\nRead more: ${url}`;
+        
+        try {
+            await navigator.clipboard.writeText(textToCopy);
+            
+            // Visual feedback
+            button.classList.add('copied');
+            button.innerHTML = '<i class="fa-solid fa-check"></i> Copied!';
+            
+            setTimeout(() => {
+                button.classList.remove('copied');
+                button.innerHTML = '<i class="fa-regular fa-copy"></i> Copy';
+            }, 2000);
+        } catch (err) {
+            console.error('Failed to copy text: ', err);
+            button.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Error';
+            setTimeout(() => {
+                button.innerHTML = '<i class="fa-regular fa-copy"></i> Copy';
+            }, 2000);
+        }
+    }
+
+    // Utility: Export to CSV
+    function exportToCSV() {
+        if (!currentFilteredEntries || currentFilteredEntries.length === 0) {
+            alert('No data to export.');
+            return;
+        }
+
+        const rows = [["Date", "Type", "Link", "Content"]];
+        
+        currentFilteredEntries.forEach(entry => {
+            entry.items.forEach(item => {
+                const cleanBodyText = stripHtml(item.body).replace(/\s+/g, ' ').trim();
+                rows.push([
+                    entry.date,
+                    item.type,
+                    entry.link || 'https://cloud.google.com/bigquery/docs/release-notes',
+                    cleanBodyText
+                ]);
+            });
+        });
+
+        const csvContent = rows.map(e => e.map(val => `"${val.replace(/"/g, '""')}"`).join(",")).join("\n");
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `bigquery_release_notes_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        
+        link.click();
+        document.body.removeChild(link);
     }
 });
