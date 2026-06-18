@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BigQuery Release Notes Explorer</title>
+    <meta name="description" content="A premium, interactive dashboard for exploring, filtering, and sharing the latest Google Cloud BigQuery release notes.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar / Header -->
+        <header class="app-header">
+            <div class="logo-area">
+                <div class="logo-icon">
+                    <i class="fa-solid fa-database"></i>
+                </div>
+                <div class="logo-text">
+                    <h1>BigQuery</h1>
+                    <span>Release Notes Explorer</span>
+                </div>
+            </div>
+
+            <!-- Controls (Search & Filter) -->
+            <div class="controls-section">
+                <div class="search-box">
+                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                    <input type="text" id="search-input" placeholder="Search updates...">
+                    <button id="clear-search" class="clear-btn" style="display: none;">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <div class="filter-group">
+                    <label>Filter by Type</label>
+                    <div class="filter-tags">
+                        <button class="filter-tag active" data-type="all">All</button>
+                        <button class="filter-tag" data-type="Feature" style="--tag-color: var(--color-feature)">
+                            <span class="dot"></span> Feature
+                        </button>
+                        <button class="filter-tag" data-type="Announcement" style="--tag-color: var(--color-announcement)">
+                            <span class="dot"></span> Announcement
+                        </button>
+                        <button class="filter-tag" data-type="Breaking" style="--tag-color: var(--color-breaking)">
+                            <span class="dot"></span> Breaking
+                        </button>
+                        <button class="filter-tag" data-type="Issue" style="--tag-color: var(--color-issue)">
+                            <span class="dot"></span> Issue
+                        </button>
+                        <button class="filter-tag" data-type="Change" style="--tag-color: var(--color-change)">
+                            <span class="dot"></span> Change
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Meta / Info -->
+            <div class="sidebar-footer">
+                <div class="refresh-container">
+                    <button id="refresh-btn" class="refresh-btn" aria-label="Refresh release notes">
+                        <i class="fa-solid fa-arrows-rotate spinner-icon"></i>
+                        <span>Refresh Feed</span>
+                    </button>
+                </div>
+                <div class="status-info">
+                    <p id="last-updated-text">Not loaded yet</p>
+                </div>
+                <div class="attribution">
+                    <p>Powered by Google Cloud Feeds</p>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Feed Area -->
+        <main class="feed-area">
+            <!-- Loading State -->
+            <div id="loading-state" class="feed-state">
+                <div class="pulsing-loader">
+                    <div class="ring"></div>
+                    <div class="ring"></div>
+                    <div class="ring"></div>
+                    <i class="fa-solid fa-cloud-arrow-down"></i>
+                </div>
+                <h3>Fetching Release Notes</h3>
+                <p>Retrieving the latest updates from Google Cloud...</p>
+            </div>
+
+            <!-- Error State -->
+            <div id="error-state" class="feed-state" style="display: none;">
+                <div class="error-icon">
+                    <i class="fa-solid fa-circle-exclamation"></i>
+                </div>
+                <h3>Failed to load feed</h3>
+                <p id="error-message">An unexpected error occurred while fetching updates.</p>
+                <button id="retry-btn" class="retry-btn">
+                    <i class="fa-solid fa-rotate-right"></i> Retry Connection
+                </button>
+            </div>
+
+            <!-- Empty State -->
+            <div id="empty-state" class="feed-state" style="display: none;">
+                <div class="empty-icon">
+                    <i class="fa-solid fa-folder-open"></i>
+                </div>
+                <h3>No updates found</h3>
+                <p>No release notes match your current filters or search query.</p>
+                <button id="clear-filters-btn" class="retry-btn">Reset Filters</button>
+            </div>
+
+            <!-- Feed Container -->
+            <div id="notes-feed" class="notes-feed" style="display: none;">
+                <!-- Cards will be dynamically injected here -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Tweet Modal Overlay -->
+    <div id="tweet-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Share to X / Twitter</h3>
+                <button id="close-modal-btn" class="close-btn" aria-label="Close modal">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-instruction">Customize your tweet text below. We've drafted a post with the update description.</p>
+                <div class="tweet-preview-box">
+                    <div class="twitter-user-sim">
+                        <div class="user-avatar">
+                            <i class="fa-solid fa-user"></i>
+                        </div>
+                        <div class="user-info">
+                            <span class="user-name">You</span>
+                            <span class="user-handle">@yourhandle</span>
+                        </div>
+                    </div>
+                    <textarea id="tweet-textarea" rows="6" maxlength="280"></textarea>
+                    <div class="character-count-row">
+                        <span id="char-counter">280</span> characters remaining
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="cancel-tweet-btn" class="btn btn-secondary">Cancel</button>
+                <button id="post-tweet-btn" class="btn btn-primary">
+                    <i class="fa-brands fa-x-twitter"></i> Post Tweet
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script -->
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
